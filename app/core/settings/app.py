@@ -1,13 +1,39 @@
 import logging
 import sys
-from typing import Any, Dict, List, Tuple
+from typing import Annotated, Any, Dict, List, Tuple
 
 from loguru import logger
-from pydantic import PostgresDsn, SecretStr
+from pydantic import (
+    AfterValidator,
+    BeforeValidator,
+    PostgresDsn,
+    SecretStr,
+    TypeAdapter,
+)
 from pydantic_settings import SettingsConfigDict
 
 from app.core.logging import InterceptHandler
 from app.core.settings.base import BaseAppSettings
+
+_postgres_dsn_adapter = TypeAdapter(PostgresDsn)
+
+
+def _strip_dsn(dsn: Any) -> Any:
+    return dsn.strip() if isinstance(dsn, str) else dsn
+
+
+def _validate_postgres_dsn(dsn: str) -> str:
+    _postgres_dsn_adapter.validate_python(dsn)
+    return dsn
+
+
+# Validated as PostgresDsn but kept as the configured string (stripped), like
+# pydantic v1, so asyncpg and alembic receive exactly what was configured.
+PostgresDsnStr = Annotated[
+    str,
+    BeforeValidator(_strip_dsn),
+    AfterValidator(_validate_postgres_dsn),
+]
 
 
 class AppSettings(BaseAppSettings):
@@ -19,7 +45,7 @@ class AppSettings(BaseAppSettings):
     title: str = "FastAPI example application"
     version: str = "0.0.0"
 
-    database_url: PostgresDsn
+    database_url: PostgresDsnStr
     max_connection_count: int = 10
     min_connection_count: int = 10
 
