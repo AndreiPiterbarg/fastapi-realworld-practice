@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.domain.articles import Article
 from app.models.schemas.rwschema import RWSchema
@@ -18,6 +18,8 @@ class ArticleInResponse(RWSchema):
 
 
 class ArticleInCreate(RWSchema):
+    model_config = ConfigDict(coerce_numbers_to_str=True)
+
     title: str
     description: str
     body: str
@@ -25,6 +27,8 @@ class ArticleInCreate(RWSchema):
 
 
 class ArticleInUpdate(RWSchema):
+    model_config = ConfigDict(coerce_numbers_to_str=True)
+
     title: Optional[str] = None
     description: Optional[str] = None
     body: Optional[str] = None
