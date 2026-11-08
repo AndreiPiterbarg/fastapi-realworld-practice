@@ -1,10 +1,10 @@
-from typing import Optional
+from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, Path, Query
-from starlette import status
+from fastapi import Depends, HTTPException, Path, Query, status
 
 from app.api.dependencies.authentication import get_current_user_authorizer
 from app.api.dependencies.database import get_repository
+from app.api.dependencies.int_coercion import V1_INT_PARSING
 from app.db.errors import EntityDoesNotExist
 from app.db.repositories.articles import ArticlesRepository
 from app.models.domain.articles import Article
@@ -22,8 +22,8 @@ def get_articles_filters(
     tag: Optional[str] = None,
     author: Optional[str] = None,
     favorited: Optional[str] = None,
-    limit: int = Query(DEFAULT_ARTICLES_LIMIT, ge=1),
-    offset: int = Query(DEFAULT_ARTICLES_OFFSET, ge=0),
+    limit: Annotated[int, Query(ge=1), V1_INT_PARSING] = DEFAULT_ARTICLES_LIMIT,
+    offset: Annotated[int, Query(ge=0), V1_INT_PARSING] = DEFAULT_ARTICLES_OFFSET,
 ) -> ArticlesFilters:
     return ArticlesFilters(
         tag=tag,
