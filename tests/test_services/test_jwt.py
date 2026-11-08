@@ -37,7 +37,7 @@ def test_retrieving_token_from_user(test_user: UserInDB) -> None:
 
 
 def test_error_when_wrong_token() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="^unable to decode JWT token$"):
         get_username_from_token("asdf", "asdf")
 
 
@@ -47,5 +47,5 @@ def test_error_when_wrong_token_shape() -> None:
         secret_key="secret",
         expires_delta=timedelta(minutes=1),
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="^malformed payload in token$"):
         get_username_from_token(token, "secret")
