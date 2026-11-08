@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class JWTMeta(BaseModel):
@@ -9,4 +9,6 @@ class JWTMeta(BaseModel):
 
 
 class JWTUser(BaseModel):
+    model_config = ConfigDict(coerce_numbers_to_str=True)
+
     username: str
