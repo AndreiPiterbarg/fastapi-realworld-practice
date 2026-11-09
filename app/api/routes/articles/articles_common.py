@@ -1,9 +1,12 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from starlette import status
 
 from app.api.dependencies.articles import get_article_by_slug_from_path
 from app.api.dependencies.authentication import get_current_user_authorizer
 from app.api.dependencies.database import get_repository
+from app.api.dependencies.int_coercion import V1_INT_PARSING
 from app.db.repositories.articles import ArticlesRepository
 from app.models.domain.articles import Article
 from app.models.domain.users import User
@@ -25,8 +28,8 @@ router = APIRouter()
     name="articles:get-user-feed-articles",
 )
 async def get_articles_for_user_feed(
-    limit: int = Query(DEFAULT_ARTICLES_LIMIT, ge=1),
-    offset: int = Query(DEFAULT_ARTICLES_OFFSET, ge=0),
+    limit: Annotated[int, Query(ge=1), V1_INT_PARSING] = DEFAULT_ARTICLES_LIMIT,
+    offset: Annotated[int, Query(ge=0), V1_INT_PARSING] = DEFAULT_ARTICLES_OFFSET,
     user: User = Depends(get_current_user_authorizer()),
     articles_repo: ArticlesRepository = Depends(get_repository(ArticlesRepository)),
 ) -> ListOfArticlesInResponse:
@@ -36,7 +39,7 @@ async def get_articles_for_user_feed(
         offset=offset,
     )
     articles_for_response = [
-        ArticleForResponse(**article.dict()) for article in articles
+        ArticleForResponse(**article.model_dump()) for article in articles
     ]
     return ListOfArticlesInResponse(
         articles=articles_for_response,
@@ -58,8 +61,8 @@ async def mark_article_as_favorite(
         await articles_repo.add_article_into_favorites(article=article, user=user)
 
         return ArticleInResponse(
-            article=ArticleForResponse.from_orm(
-                article.copy(
+            article=ArticleForResponse.model_validate(
+                article.model_copy(
                     update={
                         "favorited": True,
                         "favorites_count": article.favorites_count + 1,
@@ -88,8 +91,8 @@ async def remove_article_from_favorites(
         await articles_repo.remove_article_from_favorites(article=article, user=user)
 
         return ArticleInResponse(
-            article=ArticleForResponse.from_orm(
-                article.copy(
+            article=ArticleForResponse.model_validate(
+                article.model_copy(
                     update={
                         "favorited": False,
                         "favorites_count": article.favorites_count - 1,

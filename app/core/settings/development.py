@@ -1,5 +1,7 @@
 import logging
 
+from pydantic_settings import SettingsConfigDict
+
 from app.core.settings.app import AppSettings
 
 
@@ -10,5 +12,4 @@ class DevAppSettings(AppSettings):
 
     logging_level: int = logging.DEBUG
 
-    class Config(AppSettings.Config):
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=".env")
