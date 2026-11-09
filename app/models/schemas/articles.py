@@ -2,6 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.common import CoercedStr
 from app.models.domain.articles import Article
 from app.models.schemas.rwschema import RWSchema
 
@@ -20,18 +21,18 @@ class ArticleInResponse(RWSchema):
 class ArticleInCreate(RWSchema):
     model_config = ConfigDict(coerce_numbers_to_str=True)
 
-    title: str
-    description: str
-    body: str
-    tags: List[str] = Field([], alias="tagList")
+    title: CoercedStr
+    description: CoercedStr
+    body: CoercedStr
+    tags: List[CoercedStr] = Field([], alias="tagList")
 
 
 class ArticleInUpdate(RWSchema):
     model_config = ConfigDict(coerce_numbers_to_str=True)
 
-    title: Optional[str] = None
-    description: Optional[str] = None
-    body: Optional[str] = None
+    title: Optional[CoercedStr] = None
+    description: Optional[CoercedStr] = None
+    body: Optional[CoercedStr] = None
 
 
 class ListOfArticlesInResponse(RWSchema):
