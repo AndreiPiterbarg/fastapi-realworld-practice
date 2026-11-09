@@ -52,12 +52,15 @@ STR_TYPE = "type_error.str"
         # pydantic-v1 contract: the domain is lowercased but not IDNA-converted
         ("a@xn--mnchen-3ya.de", "a@xn--mnchen-3ya.de"),
         ("a@M\u00fcnchen.DE", "a@m\u00fcnchen.de"),
+        # pydantic-v1 contract, looks like a bug: the "fi" ligature is kept
         ("a@\ufb01.com", "a@\ufb01.com"),
         # pydantic-v1 contract: the local part keeps its case
         ("Joe.Bloggs@Example.COM", "Joe.Bloggs@example.com"),
         # pydantic-v1 contract: "Name <address>" and surrounding spaces are removed
         ("John Doe <a@b.com>", "a@b.com"),
         ("  a@b.com  ", "a@b.com"),
+        # pydantic-v1 contract, looks like a bug: a zero-width space in the
+        # local part is accepted and stored
         ("a\u200b@b.com", "a\u200b@b.com"),
     ),
 )
@@ -106,6 +109,8 @@ async def test_user_update_stores_email_as_v1(
     "email, expected_error",
     (
         # pydantic-v1 contract
+        # pydantic-v1 contract, looks like a bug: a quoted display name is
+        # rejected although "John Doe <a@b.com>" is accepted
         ('"John" <a@b.com>', _email_error("email")),
         ('"a"@b.com', _email_error("email")),
         ("a@b", _email_error("email")),
