@@ -2,19 +2,13 @@ import re
 from decimal import Decimal
 from typing import Any, Dict, Match, Optional, Tuple, cast
 
-from pydantic import (
-    AfterValidator,
-    BaseModel,
-    BeforeValidator,
-    ConfigDict,
-    EmailStr,
-    WithJsonSchema,
-)
+from pydantic import BaseModel, BeforeValidator, ConfigDict, WithJsonSchema
 from pydantic_core import PydanticCustomError
 from typing_extensions import Annotated
 
-from app.models.common import check_email_local_part_length
+from app.models.common import CoercedStr
 from app.models.domain.users import User
+from app.models.schemas.emails import Email
 from app.models.schemas.rwschema import RWSchema
 
 # Validation for UserInUpdate.image, kept identical to the pydantic 1.9 HttpUrl
@@ -194,27 +188,24 @@ HttpUrlStr = Annotated[
 ]
 
 
-Email = Annotated[EmailStr, AfterValidator(check_email_local_part_length)]
-
-
 class UserInLogin(RWSchema):
     model_config = ConfigDict(coerce_numbers_to_str=True)
 
     email: Email
-    password: str
+    password: CoercedStr
 
 
 class UserInCreate(UserInLogin):
-    username: str
+    username: CoercedStr
 
 
 class UserInUpdate(BaseModel):
     model_config = ConfigDict(coerce_numbers_to_str=True)
 
-    username: Optional[str] = None
+    username: Optional[CoercedStr] = None
     email: Optional[Email] = None
-    password: Optional[str] = None
-    bio: Optional[str] = None
+    password: Optional[CoercedStr] = None
+    bio: Optional[CoercedStr] = None
     image: Optional[HttpUrlStr] = None
 
 

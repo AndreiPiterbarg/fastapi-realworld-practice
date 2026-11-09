@@ -1,11 +1,8 @@
 import datetime
+from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
-from pydantic_core import PydanticCustomError
-
-# email-validator 1.x always rejected a local part over 64 chars; 2.x only
-# does so with strict=True, which pydantic does not pass.
-EMAIL_LOCAL_PART_MAX_LENGTH = 64
+from pydantic import BaseModel, BeforeValidator, Field, field_validator
+from typing_extensions import Annotated
 
 
 class DateTimeModelMixin(BaseModel):
@@ -25,17 +22,13 @@ class IDModelMixin(BaseModel):
     id_: int = Field(0, alias="id")
 
 
-def check_email_local_part_length(email: str) -> str:
-    excess = len(email.rsplit("@", 1)[0]) - EMAIL_LOCAL_PART_MAX_LENGTH
-    if excess > 0:
-        plural = "s" if excess > 1 else ""
-        too_many = "{0} character{1} too many".format(excess, plural)
-        reason = "The email address is too long before the @-sign ({0}).".format(
-            too_many,
-        )
-        raise PydanticCustomError(
-            "value_error",
-            "value is not a valid email address: {reason}",
-            {"reason": reason},
-        )
-    return email
+def str_from_bool(value: Any) -> Any:  # noqa: WPS110
+    """pydantic 1.9's ``str_validator`` also turned a bool into "True"/"False"."""
+    if isinstance(value, bool):
+        return str(value)
+    return value
+
+
+# A ``str`` field as pydantic 1.9 validated it, together with
+# ``coerce_numbers_to_str=True`` on the model for int/float/Decimal.
+CoercedStr = Annotated[str, BeforeValidator(str_from_bool)]
