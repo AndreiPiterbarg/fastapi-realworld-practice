@@ -253,3 +253,60 @@ async def test_non_scalar_article_fields_are_rejected_as_v1(
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     assert _errors(response.json()) == expected_errors
+
+
+@pytest.mark.parametrize(
+    "email",
+    (
+        # pydantic-v1 contract
+        "a@",
+        "a@exa\u202emple.com",
+        "a@\x80.com",
+        "{0}@{1}com".format("x" * 64, ("b" * 63 + ".") * 3),
+        "{0}@{1}com".format("\u00e9" * 60, ("b" * 63 + ".") * 3),
+    ),
+)
+async def test_registration_rejects_unmappable_or_overlong_email_as_v1(
+    app: FastAPI, client: AsyncClient, email: str
+) -> None:
+    response = await client.post(
+        app.url_path_for("auth:register"),
+        json={"user": {"email": email, "username": "u", "password": "p"}},
+    )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert _errors(response.json()) == [_email_error("email")]
+
+
+async def test_bool_password_is_stored_as_its_string(
+    app: FastAPI, client: AsyncClient
+) -> None:
+    response = await client.post(
+        app.url_path_for("auth:register"),
+        json={"user": {"email": "a@b.com", "username": "u", "password": True}},
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+
+    for password in (True, "True"):
+        response = await client.post(
+            app.url_path_for("auth:login"),
+            json={"user": {"email": "a@b.com", "password": password}},
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+
+async def test_bool_password_in_user_update_is_stored_as_its_string(
+    app: FastAPI, authorized_client: AsyncClient
+) -> None:
+    response = await authorized_client.put(
+        app.url_path_for("users:update-current-user"),
+        json={"user": {"password": True}},
+    )
+    assert response.status_code == status.HTTP_200_OK
+
+    for password in (True, "True"):
+        response = await authorized_client.post(
+            app.url_path_for("auth:login"),
+            json={"user": {"email": "test@test.com", "password": password}},
+        )
+        assert response.status_code == status.HTTP_200_OK
