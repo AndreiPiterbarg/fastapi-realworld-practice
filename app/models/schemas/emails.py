@@ -13,7 +13,6 @@ from typing import Tuple
 
 import idna
 from pydantic import AfterValidator, WithJsonSchema
-from pydantic_core import PydanticCustomError
 from typing_extensions import Annotated
 
 from app.models.common import CoercedStr
@@ -34,11 +33,9 @@ _TLD_REGEX = re.compile(r"[A-Za-z]\Z")
 _PRETTY_EMAIL_REGEX = re.compile(r"([\w ]*?) *<(.*)> *")
 
 
-def _email_error() -> PydanticCustomError:
-    return PydanticCustomError(
-        "value_error.email",
-        "value is not a valid email address",
-    )
+def _email_error() -> ValueError:
+    # Translated to v1's value_error.email by the 422 handler.
+    return ValueError("value is not a valid email address")
 
 
 def _check_local_part(local: str) -> Tuple[str, bool]:
@@ -81,10 +78,9 @@ def _check_domain_part(domain: str) -> Tuple[str, str]:
         ascii_domain = idna.encode(domain, uts46=False).decode("ascii")
     except idna.IDNAError:
         raise _email_error()
-    try:
-        unicode_domain = idna.decode(ascii_domain.encode("ascii"))
-    except idna.IDNAError:
-        raise _email_error()
+    # 1.1.3 also caught IDNAError here, but idna.encode already checks every
+    # label idna.decode does, so a domain that encodes always decodes.
+    unicode_domain = idna.decode(ascii_domain.encode("ascii"))
     if not _is_hostname(ascii_domain):
         raise _email_error()
     return ascii_domain, unicode_domain
