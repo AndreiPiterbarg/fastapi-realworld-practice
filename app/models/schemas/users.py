@@ -4,7 +4,6 @@ from typing import Any, Dict, Match, Optional, Tuple, cast
 
 from pydantic import (
     AfterValidator,
-    BaseModel,
     BeforeValidator,
     ConfigDict,
     EmailStr,
@@ -15,7 +14,7 @@ from typing_extensions import Annotated
 
 from app.models.common import check_email_local_part_length
 from app.models.domain.users import User
-from app.models.schemas.rwschema import RWSchema
+from app.models.schemas.rwschema import RWSchema, V1ModelValidation
 
 # Validation for UserInUpdate.image, kept identical to the pydantic 1.9 HttpUrl
 # the API shipped with: same accepted inputs, same stored string (no
@@ -208,7 +207,7 @@ class UserInCreate(UserInLogin):
     username: str
 
 
-class UserInUpdate(BaseModel):
+class UserInUpdate(V1ModelValidation):
     model_config = ConfigDict(coerce_numbers_to_str=True)
 
     username: Optional[str] = None
