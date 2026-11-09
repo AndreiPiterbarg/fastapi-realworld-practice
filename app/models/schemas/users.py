@@ -2,14 +2,14 @@ import re
 from decimal import Decimal
 from typing import Any, Dict, Match, Optional, Tuple, cast
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, WithJsonSchema
+from pydantic import BeforeValidator, ConfigDict, WithJsonSchema
 from pydantic_core import PydanticCustomError
 from typing_extensions import Annotated
 
 from app.models.common import CoercedStr
 from app.models.domain.users import User
 from app.models.schemas.emails import Email
-from app.models.schemas.rwschema import RWSchema
+from app.models.schemas.rwschema import RWSchema, V1ModelValidation
 
 # Validation for UserInUpdate.image, kept identical to the pydantic 1.9 HttpUrl
 # the API shipped with: same accepted inputs, same stored string (no
@@ -199,7 +199,7 @@ class UserInCreate(UserInLogin):
     username: CoercedStr
 
 
-class UserInUpdate(BaseModel):
+class UserInUpdate(V1ModelValidation):
     model_config = ConfigDict(coerce_numbers_to_str=True)
 
     username: Optional[CoercedStr] = None
