@@ -8,6 +8,7 @@ from starlette.types import ExceptionHandler
 
 from app.api.errors.http_error import http_error_handler
 from app.api.errors.validation_error import http422_error_handler
+from app.api.openapi import use_v1_openapi
 from app.api.routes.api import router as api_router
 from app.core.config import get_app_settings
 from app.core.events import create_start_app_handler, create_stop_app_handler
@@ -47,6 +48,7 @@ def get_application() -> FastAPI:
     )
 
     application.include_router(api_router, prefix=settings.api_prefix)
+    use_v1_openapi(application)
 
     return application
 
