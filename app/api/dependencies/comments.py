@@ -1,9 +1,10 @@
-from typing import Optional
+from typing import Annotated, Optional
 
 from fastapi import Depends, HTTPException, Path
 from starlette import status
 
 from app.api.dependencies import articles, authentication, database
+from app.api.dependencies.int_coercion import V1_INT_PARSING
 from app.db.errors import EntityDoesNotExist
 from app.db.repositories.comments import CommentsRepository
 from app.models.domain.articles import Article
@@ -14,7 +15,7 @@ from app.services.comments import check_user_can_modify_comment
 
 
 async def get_comment_by_id_from_path(
-    comment_id: int = Path(..., ge=1),
+    comment_id: Annotated[int, Path(ge=1), V1_INT_PARSING],
     article: Article = Depends(articles.get_article_by_slug_from_path),
     user: Optional[User] = Depends(
         authentication.get_current_user_authorizer(required=False),

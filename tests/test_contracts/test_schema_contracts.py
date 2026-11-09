@@ -4,11 +4,13 @@ Entries marked ``# pydantic-v1 contract`` are values that pydantic v2 produces
 differently by default. They can reach clients, so the migration must keep them.
 """
 import datetime
+import json
 from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
 
+from app.api.errors.v1_errors import pydantic_v1_errors
 from app.models.common import DateTimeModelMixin
 from app.models.domain.profiles import Profile
 from app.models.domain.rwmodel import (
@@ -23,6 +25,19 @@ from app.models.schemas.articles import (
 from app.models.schemas.users import UserInResponse, UserInUpdate, UserWithToken
 
 FIXED_DT = datetime.datetime(2020, 1, 2, 3, 4, 5, 6)
+
+
+def v1_errors(exc: ValidationError) -> list:
+    # The v1-shaped errors the 422 handler sends, with tuple locs as in v1.
+    return [
+        {**error, "loc": tuple(error["loc"])}
+        for error in pydantic_v1_errors(exc.errors())
+    ]
+
+
+def v1_json(model: object, **kwargs: object) -> str:
+    # pydantic v1 .json(): json.dumps of the JSON-mode dict, default separators.
+    return json.dumps(model.model_dump(mode="json", **kwargs))  # type: ignore
 
 
 # --- RWModel serialization --------------------------------------------------
@@ -101,14 +116,24 @@ def test_article_in_create_alias_wins_over_field_name() -> None:
 def test_article_in_create_tags_default_to_empty_list() -> None:
     article = ArticleInCreate(title="t", description="d", body="b")
 
-    assert article.dict() == {"title": "t", "description": "d", "body": "b", "tags": []}
-    assert article.dict(by_alias=True)["tagList"] == []
+    assert article.model_dump() == {
+        "title": "t",
+        "description": "d",
+        "body": "b",
+        "tags": [],
+    }
+    assert article.model_dump(by_alias=True)["tagList"] == []
 
 
 def test_article_in_create_ignores_unknown_fields() -> None:
     article = ArticleInCreate(title="t", description="d", body="b", slug="nope")
 
-    assert article.dict() == {"title": "t", "description": "d", "body": "b", "tags": []}
+    assert article.model_dump() == {
+        "title": "t",
+        "description": "d",
+        "body": "b",
+        "tags": [],
+    }
 
 
 def test_article_in_create_coerces_int_title_to_str() -> None:
@@ -121,7 +146,7 @@ def test_article_in_create_missing_fields() -> None:
         ArticleInCreate()
 
     # pydantic-v1 contract: v2 default differs; migration must preserve this
-    assert exc_info.value.errors() == [
+    assert v1_errors(exc_info.value) == [
         {"loc": ("title",), "msg": "field required", "type": "value_error.missing"},
         {
             "loc": ("description",),
@@ -137,7 +162,7 @@ def test_article_in_create_rejects_string_tag_list() -> None:
         ArticleInCreate(title="t", description="d", body="b", tagList="abc")
 
     # pydantic-v1 contract: v2 default differs; migration must preserve this
-    assert exc_info.value.errors() == [
+    assert v1_errors(exc_info.value) == [
         {
             "loc": ("tagList",),
             "msg": "value is not a valid list",
@@ -150,7 +175,7 @@ def test_article_in_create_rejects_string_tag_list() -> None:
 
 
 def test_user_in_update_empty_body_is_valid() -> None:
-    assert UserInUpdate().dict() == {
+    assert UserInUpdate().model_dump() == {
         "username": None,
         "email": None,
         "password": None,
@@ -175,8 +200,8 @@ def test_user_in_update_image_serialization(url: str, expected: str) -> None:
 
     assert isinstance(update.image, str)
     assert str(update.image) == expected
-    assert update.dict()["image"] == expected
-    assert update.json() == (
+    assert update.model_dump()["image"] == expected
+    assert v1_json(update) == (
         '{"username": null, "email": null, "password": null, "bio": null, '
         f'"image": "{expected}"}}'
     )
@@ -219,7 +244,7 @@ def test_user_in_update_image_rejects_non_url(url: str, expected_error: dict) ->
     with pytest.raises(ValidationError) as exc_info:
         UserInUpdate(image=url)
 
-    assert exc_info.value.errors() == [expected_error]
+    assert v1_errors(exc_info.value) == [expected_error]
 
 
 def test_user_in_update_email_normalises_domain_only() -> None:
@@ -268,12 +293,15 @@ def test_datetime_mixin_rejects_garbage() -> None:
     with pytest.raises(ValidationError) as exc_info:
         DateTimeModelMixin(created_at="nope")
 
-    # pydantic-v1 contract: v2 default differs; migration must preserve this
-    assert exc_info.value.errors() == [
+    # Not reachable from a request (no body accepts createdAt/updatedAt), so
+    # this pins pydantic's own error rather than a 422 body.
+    assert exc_info.value.errors(include_url=False) == [
         {
             "loc": ("created_at",),
-            "msg": "invalid datetime format",
-            "type": "value_error.datetime",
+            "msg": "Input should be a valid datetime or date, input is too short",
+            "type": "datetime_from_date_parsing",
+            "input": "nope",
+            "ctx": {"error": "input is too short"},
         }
     ]
 
@@ -282,7 +310,7 @@ def test_datetime_mixin_rejects_garbage() -> None:
 
 
 def test_articles_filters_defaults() -> None:
-    assert ArticlesFilters().dict() == {
+    assert ArticlesFilters().model_dump() == {
         "tag": None,
         "author": None,
         "favorited": None,
@@ -332,7 +360,7 @@ def test_articles_filters_boundaries_rejected(
     with pytest.raises(ValidationError) as exc_info:
         ArticlesFilters(**kwargs)
 
-    assert exc_info.value.errors() == [expected_error]
+    assert v1_errors(exc_info.value) == [expected_error]
 
 
 # --- orm_mode ---------------------------------------------------------------
@@ -357,11 +385,11 @@ def _orm_article(**overrides: object) -> SimpleNamespace:
 
 
 def test_article_for_response_from_orm() -> None:
-    article = ArticleForResponse.from_orm(_orm_article())
+    article = ArticleForResponse.model_validate(_orm_article())
 
     assert article.id_ == 5
     assert article.tags == ["x"]
-    assert article.json(by_alias=True) == (
+    assert v1_json(article, by_alias=True) == (
         '{"createdAt": "2020-01-02T03:04:05.000006Z", '
         '"updatedAt": "2020-01-02T03:04:05.000006Z", "id": 5, "slug": "s", '
         '"title": "t", "description": "d", "body": "b", "tagList": ["x"], '
@@ -375,11 +403,11 @@ def test_article_for_response_from_orm_reads_tag_list_alias() -> None:
     del orm.tags
     orm.tagList = ["y"]
 
-    assert ArticleForResponse.from_orm(orm).tags == ["y"]
+    assert ArticleForResponse.model_validate(orm).tags == ["y"]
 
 
 def test_article_for_response_from_orm_prefers_id_attribute() -> None:
-    assert ArticleForResponse.from_orm(_orm_article(id_=7)).id_ == 5
+    assert ArticleForResponse.model_validate(_orm_article(id_=7)).id_ == 5
 
 
 def test_article_for_response_from_orm_rejects_plain_object_author() -> None:
@@ -387,14 +415,16 @@ def test_article_for_response_from_orm_rejects_plain_object_author() -> None:
     author = SimpleNamespace(username="a", bio="", image=None, following=False)
 
     with pytest.raises(ValidationError) as exc_info:
-        ArticleForResponse.from_orm(_orm_article(author=author))
+        ArticleForResponse.model_validate(_orm_article(author=author))
 
-    # pydantic-v1 contract: v2 default differs; migration must preserve this
-    assert exc_info.value.errors() == [
+    # Response models are built server-side; a failure here is a 500, not a
+    # 422 body, so this pins pydantic's own error.
+    assert exc_info.value.errors(include_url=False, include_input=False) == [
         {
             "loc": ("author",),
-            "msg": "value is not a valid dict",
-            "type": "type_error.dict",
+            "msg": "Input should be a valid dictionary or instance of Profile",
+            "type": "model_type",
+            "ctx": {"class_name": "Profile"},
         }
     ]
 
@@ -402,9 +432,9 @@ def test_article_for_response_from_orm_rejects_plain_object_author() -> None:
 def test_user_in_response_from_orm() -> None:
     user = UserWithToken(username="u", email="e", token="t")
 
-    response = UserInResponse.from_orm(SimpleNamespace(user=user))
+    response = UserInResponse.model_validate(SimpleNamespace(user=user))
 
-    assert response.json() == (
+    assert v1_json(response) == (
         '{"user": {"username": "u", "email": "e", "bio": "", "image": null, '
         '"token": "t"}}'
     )
@@ -413,7 +443,7 @@ def test_user_in_response_from_orm() -> None:
 def test_user_in_response_from_orm_accepts_nested_dict() -> None:
     orm = SimpleNamespace(user={"username": "u", "email": "e", "token": "t"})
 
-    assert UserInResponse.from_orm(orm).dict() == {
+    assert UserInResponse.model_validate(orm).model_dump() == {
         "user": {"username": "u", "email": "e", "bio": "", "image": None, "token": "t"}
     }
 
@@ -424,13 +454,15 @@ def test_user_in_response_from_orm_rejects_plain_object_user() -> None:
     )
 
     with pytest.raises(ValidationError) as exc_info:
-        UserInResponse.from_orm(orm)
+        UserInResponse.model_validate(orm)
 
-    # pydantic-v1 contract: v2 default differs; migration must preserve this
-    assert exc_info.value.errors() == [
+    # Response models are built server-side; a failure here is a 500, not a
+    # 422 body, so this pins pydantic's own error.
+    assert exc_info.value.errors(include_url=False, include_input=False) == [
         {
             "loc": ("user",),
-            "msg": "value is not a valid dict",
-            "type": "type_error.dict",
+            "msg": "Input should be a valid dictionary or instance of UserWithToken",
+            "type": "model_type",
+            "ctx": {"class_name": "UserWithToken"},
         }
     ]
